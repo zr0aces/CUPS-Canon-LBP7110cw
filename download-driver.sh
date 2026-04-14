@@ -16,7 +16,11 @@ DRIVER_FILE="linux-UFRIILT-drv-v500-uken-18.tar.gz"
 MIN_BYTES=20000000   # reject anything smaller than ~20 MB
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DEST="${SCRIPT_DIR}/${DRIVER_FILE}"
+DOWNLOAD_DIR="${SCRIPT_DIR}/download"
+DEST="${DOWNLOAD_DIR}/${DRIVER_FILE}"
+
+# Ensure download directory exists
+mkdir -p "$DOWNLOAD_DIR"
 
 echo "══════════════════════════════════════════════════════"
 echo "  Canon UFRII LT v5.00 driver — download"
@@ -30,9 +34,10 @@ if [ -f "$DEST" ]; then
     SIZE=$(stat -c%s "$DEST" 2>/dev/null || stat -f%z "$DEST" 2>/dev/null || echo 0)
     if [ "$SIZE" -ge "$MIN_BYTES" ] && gzip -t "$DEST" 2>/dev/null; then
         echo "✓ Driver already present and valid (${SIZE} bytes)."
-        echo "  Skipping download."
+        echo "  Skipping all steps."
+        exit 0
     else
-        echo "! Existing file is corrupt or incomplete (${SIZE} bytes)."
+        echo "! Existing file is missing, corrupt, or incomplete (${SIZE} bytes)."
         echo "  Deleting and re-downloading..."
         rm -f "$DEST"
     fi

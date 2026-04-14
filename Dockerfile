@@ -55,7 +55,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 #    Run  ./download-driver.sh  first so this file exists in the build context.
 #    The Dockerfile intentionally uses COPY (not RUN wget) so the build works
 #    in air-gapped / network-restricted environments.
-COPY linux-UFRIILT-drv-v500-uken-18.tar.gz /tmp/canon-driver.tar.gz
+COPY download/linux-UFRIILT-drv-v500-uken-18.tar.gz /tmp/canon-driver.tar.gz
 
 # ── 3. Extract tarball and run Canon's official install.sh non-interactively ──
 #
