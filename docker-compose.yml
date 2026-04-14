@@ -19,6 +19,8 @@ services:
     image: cups-canon-lbp7110cw:latest
     container_name: cups-canon-lbp7110cw
     restart: unless-stopped
+    env_file:
+      - .env
 
     environment:
       # ── ManuelKlaer-compatible admin credential ──────────────────────────
@@ -31,8 +33,7 @@ services:
       # ── Canon LBP7110Cw settings ─────────────────────────────────────────
       # No rebuild needed to change these — they are applied at startup.
       PRINTER_NAME: "Canon_LBP7110Cw"
-      PRINTER_IP:   "192.168.1.100"     # ← SET YOUR PRINTER'S IP HERE
-      PRINTER_PPD:  "CNCUPSLBP7110CZNK.ppd"
+      PRINTER_PPD:  "CNRCUPSLBP7110CZNK.ppd"
 
     ports:
       - "631:631"           # CUPS IPP + Web UI
@@ -47,8 +48,10 @@ services:
     networks:
       - print-network
 
+    # ── Healthcheck ──────────────────────────────────────────────────────────
     # Container is healthy once CUPS responds on port 631.
-    # Other containers that depend on this service wait for healthy status.
+    # This allows dependent containers (like print-client) to wait until the
+    # CUPS server is fully initialized before attempting to print.
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:631/"]
       interval: 20s

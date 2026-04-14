@@ -10,7 +10,7 @@
 #   CUPS_ENV_DEBUG   set 'yes' for bash -x trace  (default: no)
 #   PRINTER_NAME     CUPS queue name              (default: Canon_LBP7110Cw)
 #   PRINTER_IP       Printer IP address           (default: 192.168.1.100)
-#   PRINTER_PPD      PPD filename from driver     (default: CNCUPSLBP7110CZNK.ppd)
+#   PRINTER_PPD      PPD filename from driver     (default: CNRCUPSLBP7110CZNK.ppd)
 # =============================================================================
 
 # NOTE: Do NOT use  set -e  at the top level — the monitoring loop uses
@@ -31,7 +31,7 @@ CUPS_LOGLEVEL="${CUPS_LOGLEVEL:-warn}"
 CUPS_ENV_DEBUG="${CUPS_ENV_DEBUG:-no}"
 PRINTER_NAME="${PRINTER_NAME:-Canon_LBP7110Cw}"
 PRINTER_IP="${PRINTER_IP:-192.168.1.100}"
-PRINTER_PPD="${PRINTER_PPD:-CNCUPSLBP7110CZNK.ppd}"
+PRINTER_PPD="${PRINTER_PPD:-CNRCUPSLBP7110CZNK.ppd}"
 
 if [ "$CUPS_ENV_DEBUG" = "yes" ]; then
     set -x

@@ -11,7 +11,7 @@ ENV ADMIN_PASSWORD=admin \
     CUPS_ENV_DEBUG=no \
     PRINTER_NAME=Canon_LBP7110Cw \
     PRINTER_IP=192.168.1.100 \
-    PRINTER_PPD=CNCUPSLBP7110CZNK.ppd
+    PRINTER_PPD=CNRCUPSLBP7110CZNK.ppd
 
 # ── 1. Base system packages ───────────────────────────────────────────────────
 #    Matches the ManuelKlaer/docker-cups-canon package set, plus Canon driver

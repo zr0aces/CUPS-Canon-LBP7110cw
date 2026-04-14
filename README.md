@@ -61,13 +61,22 @@ Ready to build!
 
 ### Step 2 — Set your printer's IP
 
-Open `docker-compose.yml` and change one line:
+The easiest way to configure the printer is using a `.env` file. You can
+copy the example and edit it:
 
-```yaml
-PRINTER_IP: "192.168.1.100"    # ← your Canon LBP7110Cw's actual IP
+```bash
+cp .env-example .env
+nano .env
 ```
 
-**Finding your printer's IP:** press the WiFi button on the printer to print a
+Set the IP address of your printer:
+```bash
+PRINTER_IP=192.168.1.100
+```
+
+Alternatively, you can edit the `environment` section in `docker-compose.yml`.
+
+**Finding your printer's IP:** Press the WiFi button on the printer to print a
 network status page, or check your router's DHCP leases table.
 
 ---
@@ -87,7 +96,7 @@ Installing cnrdrvcups-common ... done
 Installing cnrdrvcups-ufr2lt-uk ... done
 Installation is complete. Do you want to register the printer now? [Y/n]: N
 === Installed Canon PPDs ===
-/usr/share/cups/model/CNCUPSLBP7110CZNK.ppd
+/usr/share/cups/model/CNRCUPSLBP7110CZNK.ppd
 ```
 
 > The `N` to "register printer now?" is intentional. The printer is registered
@@ -111,6 +120,21 @@ open http://localhost:631
 
 ---
 
+### Step 5 — Healthcheck and Monitoring
+
+The `cups` container includes a built-in healthcheck. You can monitor its status
+with:
+
+```bash
+docker compose ps
+```
+
+The status will change from `(health: starting)` to `(healthy)` once the CUPS
+daemon is up and the printer has been registered. This status is used to
+coordinate dependent services like the `print-client` example.
+
+---
+
 ## Environment variables
 
 | Variable | Default | Description |
@@ -118,7 +142,7 @@ open http://localhost:631
 | `ADMIN_PASSWORD` | `admin` | CUPS Web UI + admin password |
 | `PRINTER_NAME` | `Canon_LBP7110Cw` | CUPS queue name |
 | `PRINTER_IP` | `192.168.1.100` | **Set to your printer's IP** |
-| `PRINTER_PPD` | `CNCUPSLBP7110CZNK.ppd` | PPD installed by Canon driver |
+| `PRINTER_PPD` | `CNRCUPSLBP7110CZNK.ppd` | PPD installed by Canon driver |
 | `CUPS_LOGLEVEL` | `warn` | `error` / `warn` / `info` / `debug` |
 | `CUPS_ENV_DEBUG` | `no` | `yes` = full `bash -x` trace in logs |
 
@@ -198,7 +222,7 @@ Login: **admin** / value of `ADMIN_PASSWORD`.
 | Tarball | `linux-UFRIILT-drv-v500-uken-18.tar.gz` |
 | Installer | `install.sh` (Canon's official script, run at build time) |
 | Packages | `cnrdrvcups-common` + `cnrdrvcups-ufr2lt-uk` |
-| PPD | `CNCUPSLBP7110CZNK.ppd` |
+| PPD | `CNRCUPSLBP7110CZNK.ppd` |
 | Protocol | UFRII LT over raw TCP port 9100 |
 
 ---
@@ -223,7 +247,7 @@ docker exec cups-canon-lbp7110cw lpadmin -x Canon_LBP7110Cw
 docker exec cups-canon-lbp7110cw lpadmin \
     -p Canon_LBP7110Cw -E \
     -v socket://192.168.1.50:9100 \
-    -P /usr/share/cups/model/CNCUPSLBP7110CZNK.ppd \
+    -P /usr/share/cups/model/CNRCUPSLBP7110CZNK.ppd \
     -o printer-is-shared=true
 
 # ── List installed Canon PPDs ─────────────────────────────────────────────────
