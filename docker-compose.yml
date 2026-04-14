@@ -1,0 +1,116 @@
+# =============================================================================
+# docker-compose.yml
+# CUPS print server with Canon LBP7110Cw UFRII LT driver.
+# Based on ManuelKlaer/docker-cups-canon.
+#
+# Usage:
+#   1.  ./download-driver.sh        (once – downloads Canon driver tarball)
+#   2.  Set PRINTER_IP below        (your printer's actual IP address)
+#   3.  docker compose up -d --build
+# =============================================================================
+
+services:
+
+  # ── CUPS Print Server ──────────────────────────────────────────────────────
+  cups:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: cups-canon-lbp7110cw:latest
+    container_name: cups-canon-lbp7110cw
+    restart: unless-stopped
+
+    environment:
+      # ── ManuelKlaer-compatible admin credential ──────────────────────────
+      ADMIN_PASSWORD: "admin"            # ← CHANGE THIS in production
+
+      # ── CUPS logging ─────────────────────────────────────────────────────
+      CUPS_LOGLEVEL: "warn"             # error | warn | info | debug
+      CUPS_ENV_DEBUG: "no"             # "yes" enables full bash -x trace
+
+      # ── Canon LBP7110Cw settings ─────────────────────────────────────────
+      # No rebuild needed to change these — they are applied at startup.
+      PRINTER_NAME: "Canon_LBP7110Cw"
+      PRINTER_IP:   "192.168.1.100"     # ← SET YOUR PRINTER'S IP HERE
+      PRINTER_PPD:  "CNCUPSLBP7110CZNK.ppd"
+
+    ports:
+      - "631:631"           # CUPS IPP + Web UI
+
+    volumes:
+      # /etc/cups  – persists printer queues between restarts (ManuelKlaer mount)
+      - cups-config:/etc/cups
+      # Extra persistent volumes for spool and logs
+      - cups-spool:/var/spool/cups
+      - cups-logs:/var/log/cups
+
+    networks:
+      - print-network
+
+    # Container is healthy once CUPS responds on port 631.
+    # Other containers that depend on this service wait for healthy status.
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:631/"]
+      interval: 20s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+
+  # ── Example client container ───────────────────────────────────────────────
+  # Any container on print-network can print without installing a driver.
+  # This example shows how — replace/remove it and wire your own app instead.
+  print-client:
+    image: ubuntu:22.04
+    container_name: print-client-example
+    restart: "no"
+    depends_on:
+      cups:
+        condition: service_healthy
+    environment:
+      CUPS_SERVER: cups
+    command: >
+      bash -c "
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get update -qq
+        apt-get install -y -qq cups-client curl
+
+        echo 'ServerName cups' > /etc/cups/client.conf
+
+        echo ''
+        echo '=== Available printers on the CUPS server ==='
+        lpstat -h cups -v
+
+        echo ''
+        echo '=== Sending test print job ==='
+        echo 'Hello from Docker print-client container!' | lp -h cups -d Canon_LBP7110Cw
+
+        echo ''
+        echo '=== Job queue ==='
+        lpstat -h cups
+
+        echo ''
+        echo 'Done. Container will now exit.'
+      "
+    networks:
+      - print-network
+
+# ── Named volumes ──────────────────────────────────────────────────────────────
+volumes:
+  cups-config:
+    driver: local
+  cups-spool:
+    driver: local
+  cups-logs:
+    driver: local
+
+# ── Networks ───────────────────────────────────────────────────────────────────
+networks:
+  # Other containers can join this network to print:
+  #   networks:
+  #     - cups-canon_print-network
+  # with:
+  #   networks:
+  #     cups-canon_print-network:
+  #       external: true
+  print-network:
+    driver: bridge
