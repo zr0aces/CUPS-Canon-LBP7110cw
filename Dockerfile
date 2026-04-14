@@ -165,4 +165,8 @@ EXPOSE 631
 # Persist printer configuration across container restarts (same as ManuelKlaer)
 VOLUME ["/etc/cups"]
 
+# Healthcheck to monitor CUPS status
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+  CMD curl -f http://localhost:631/ || exit 1
+
 ENTRYPOINT ["/docker-entrypoint.sh"]

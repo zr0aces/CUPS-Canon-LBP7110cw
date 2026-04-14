@@ -10,6 +10,15 @@ driver and automatic printer registration at container startup.
 
 ---
 
+## Supported Architectures
+
+> [!IMPORTANT]
+> This image is **AMD64 only** (Standard PC).
+> 
+> The Canon UFRII LT driver is a proprietary binary provided by Canon in `x86_64` (amd64) and `i386` formats. It does **not** support ARMv8 (arm64), so it will not run on a Raspberry Pi or Apple Silicon (M1/M2/M3) without x86 emulation.
+
+---
+
 ## File overview
 
 | File | Purpose |
@@ -26,9 +35,8 @@ driver and automatic printer registration at container startup.
 
 ### Step 1 — Download the Canon driver (once)
 
-The driver tarball (~21 MB) must exist **next to the Dockerfile** before you
-build. Docker cannot fetch URLs during `docker build`, so we download it
-separately first.
+The driver tarball (~21 MB) will be downloaded into a dedicated `download/`
+folder. Docker copies it from there during the build process.
 
 ```bash
 chmod +x download-driver.sh
@@ -55,7 +63,7 @@ Ready to build!
 
 > **No curl/wget?** Manually download the file from:
 > `https://gdlp01.c-wss.com/gds/0/0100005950/10/linux-UFRIILT-drv-v500-uken-18.tar.gz`
-> and place it in the same folder as the Dockerfile.
+> and place it in the **`download/`** folder.
 
 ---
 
