@@ -1,0 +1,1 @@
+# CUPS-Canon-LBP7110cw
