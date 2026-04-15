@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.2] — 2026-04-15
+
+### Added
+- **Timezone support**: Added `tzdata` and the `TZ` environment variable to allow configuring the container's timezone. Default set to `Asia/Bangkok` (GMT+7).
+
+---
+
 ## [1.1.1] — 2026-04-15
 
 ### Bug Fixes

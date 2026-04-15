@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# download-driver.sh  v1.1.0
+# download-driver.sh  v1.1.2
 # Verifies the Canon UFRII LT v5.00 Linux driver tarball in the /download
 # directory. While these drivers are now tracked in git to prevent missing
 # files during CI/CD or fresh clones, this script remains available to

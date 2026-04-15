@@ -6,7 +6,7 @@ FROM ubuntu:22.04
 
 LABEL maintainer="cups-canon-lbp7110cw"
 LABEL description="CUPS print server for Canon LBP7110Cw – based on ManuelKlaer/docker-cups-canon, driver installed via Canon's official install.sh"
-LABEL org.opencontainers.image.version="1.1.0"
+LABEL org.opencontainers.image.version="1.1.2"
 LABEL org.opencontainers.image.source="https://github.com/zr0aces/CUPS-Canon-LBP7110cw"
 
 ENV DEBIAN_FRONTEND=noninteractive
