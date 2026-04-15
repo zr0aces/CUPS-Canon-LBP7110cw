@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# docker-entrypoint.sh
+# docker-entrypoint.sh  v1.0.1
 # Based on ManuelKlaer/docker-cups-canon (which forks ydkn / olbat cupsd).
 # Extended to auto-register the Canon LBP7110Cw via its UFRII LT PPD.
 #
@@ -13,10 +13,10 @@
 #   PRINTER_PPD      PPD filename from driver     (default: CNRCUPSLBP7110CZNK.ppd)
 # =============================================================================
 
-# NOTE: Do NOT use  set -e  at the top level — the monitoring loop uses
-# pgrep which returns exit 1 when no process is found, and we want to
-# handle that ourselves rather than abort the whole script.
-set -uo pipefail
+# NOTE: Do NOT add -e to the set flags at the top level — the monitoring loop
+# uses pgrep which returns exit 1 when no process is found, and we want to
+# handle that ourselves rather than abort the whole script. (#18)
+set -uo pipefail   # intentionally no -e: pgrep exit-1 must not kill the script
 
 # ── Colour helpers ─────────────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
@@ -56,7 +56,7 @@ if ! id admin &>/dev/null 2>&1; then
     ok "User 'admin' created."
 fi
 echo "admin:${ADMIN_PASSWORD}" | chpasswd
-ok "Admin password set."
+ok "Admin password configured."
 
 # ── 2. Required directories ───────────────────────────────────────────────────
 mkdir -p /var/spool/cups/tmp /var/log/cups /run/cups
@@ -92,16 +92,16 @@ fi
 log "Starting cupsd..."
 /usr/sbin/cupsd
 
-# Poll until CUPS is answering on port 631 (up to 30 s)
+# Poll until CUPS is answering on port 631 (up to 30 s) (#10 fixed timing)
 log "Waiting for CUPS..."
 CUPS_READY=0
-for i in $(seq 1 30); do
-    if curl -sf http://localhost:631/ >/dev/null 2>&1; then
-        ok "CUPS is ready (after ${i}s)."
+for i in $(seq 0 29); do
+    sleep 1
+    if curl -sf --max-time 3 http://localhost:631/ >/dev/null 2>&1; then
+        ok "CUPS is ready (after $((i + 1))s)."
         CUPS_READY=1
         break
     fi
-    sleep 1
 done
 
 if [ "$CUPS_READY" -eq 0 ]; then
@@ -122,8 +122,9 @@ find_ppd() {
     for p in "${candidates[@]}"; do
         [ -f "$p" ] && echo "$p" && return 0
     done
-    # Broad fallback search
-    find /usr /usr/local -name "${PRINTER_PPD}" 2>/dev/null | head -1
+    # Scoped fallback — only search known PPD locations, limited depth (#14)
+    find /usr/share/cups /usr/local/share/cups /usr/share/ppd \
+        -maxdepth 5 -name "${PRINTER_PPD}" 2>/dev/null | head -1
 }
 
 PPD_PATH="$(find_ppd)"
@@ -137,10 +138,10 @@ fi
 # ── 8. Register the Canon LBP7110Cw in CUPS ──────────────────────────────────
 PRINTER_URI="socket://${PRINTER_IP}:9100"
 
-# Idempotent: remove any stale queue first
+# Idempotent: remove any stale queue first (#11 — log the output)
 if lpstat -v 2>/dev/null | grep -q "device for ${PRINTER_NAME}:"; then
     log "Removing existing queue '${PRINTER_NAME}'..."
-    lpadmin -x "${PRINTER_NAME}" 2>/dev/null || true
+    lpadmin -x "${PRINTER_NAME}" 2>&1 | while IFS= read -r line; do log "$line"; done || true
 fi
 
 log "Registering '${PRINTER_NAME}' → ${PRINTER_URI}"
@@ -173,11 +174,12 @@ cupsaccept  "${PRINTER_NAME}"
 lpoptions -d "${PRINTER_NAME}"
 ok "'${PRINTER_NAME}' is the default queue."
 
-# ── 9. Print a startup summary ────────────────────────────────────────────────
+# ── 9. Print a startup summary (#19 — password masked) ───────────────────────
+PW_STARS="$(printf '%*s' "${#ADMIN_PASSWORD}" '' | tr ' ' '*')"
 log ""
 log "  ┌─ CUPS ready ──────────────────────────────────────────┐"
 log "  │  Web UI   : http://<host-ip>:631                      │"
-log "  │  Login    : admin / ${ADMIN_PASSWORD}                      │"
+log "  │  Login    : admin / ${PW_STARS}                            │"
 log "  │  IPP URI  : ipp://<host-ip>:631/printers/${PRINTER_NAME} │"
 log "  ├─ Printing from another container ──────────────────── │"
 log "  │  echo 'ServerName cups' > /etc/cups/client.conf       │"
@@ -187,15 +189,36 @@ log ""
 lpstat -v 2>/dev/null || true
 log ""
 
-# ── 10. Keep the container alive; restart cupsd if it crashes ─────────────────
-log "Container running. Monitoring cupsd every 10 s..."
+# ── 10. Keep the container alive; restart cupsd / avahi / dbus if they crash ──
+# (#9 — extended to restart avahi-daemon and dbus-daemon if they exit)
+log "Container running. Monitoring services every 10 s..."
 while true; do
     sleep 10
+
+    # ── cupsd ──────────────────────────────────────────────────────────────
     if ! pgrep -x cupsd > /dev/null 2>&1; then
         warn "cupsd is not running — restarting..."
         /usr/sbin/cupsd \
             && ok  "cupsd restarted." \
             || err "cupsd failed to restart!"
         sleep 5
+    fi
+
+    # ── avahi-daemon (non-fatal; may not be available in all environments) ──
+    if command -v avahi-daemon &>/dev/null; then
+        if ! pgrep -x avahi-daemon > /dev/null 2>&1; then
+            warn "avahi-daemon is not running — restarting..."
+            avahi-daemon --daemonize --no-chroot 2>/dev/null \
+                && ok  "avahi-daemon restarted." \
+                || warn "avahi-daemon failed to restart (non-fatal)."
+        fi
+    fi
+
+    # ── dbus-daemon ────────────────────────────────────────────────────────
+    if ! pgrep -x dbus-daemon > /dev/null 2>&1; then
+        warn "dbus-daemon is not running — restarting..."
+        dbus-daemon --system --fork 2>/dev/null \
+            && ok  "dbus-daemon restarted." \
+            || warn "dbus-daemon failed to restart (non-fatal)."
     fi
 done

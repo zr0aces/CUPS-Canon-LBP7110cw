@@ -1,5 +1,16 @@
+# ── Secrets / local state ──────────────────────────────────────────────────────
+# Runtime secrets — never commit
 .env
-cups-config/
-cups-logs/
-cups-spool/
-#download/
+
+# CUPS volume bind-mounts (populated at runtime by docker-compose)
+cups-config/*
+!cups-config/.gitkeep
+cups-logs/*
+!cups-logs/.gitkeep
+cups-spool/*
+!cups-spool/.gitkeep
+
+# Canon driver tarball (large binary, downloaded by download-driver.sh)
+# Keep the download/ directory in git (via .gitkeep) but exclude the tarball.
+download/*
+!download/.gitkeep

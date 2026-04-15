@@ -14,8 +14,37 @@ driver and automatic printer registration at container startup.
 
 > [!IMPORTANT]
 > This image is **AMD64 only** (Standard PC).
-> 
+>
 > The Canon UFRII LT driver is a proprietary binary provided by Canon in `x86_64` (amd64) and `i386` formats. It does **not** support ARMv8 (arm64), so it will not run on a Raspberry Pi or Apple Silicon (M1/M2/M3) without x86 emulation.
+
+---
+
+## Using the Pre-built Image (Packages)
+
+Instead of downloading the driver and building the image locally, you can use the pre-built image from the **GitHub Container Registry**.
+
+**Benefits:**
+- **No Build Required**: Skip Step 1 and Step 3 (the driver is already installed).
+- **Faster Setup**: Pulling the image is much faster than running the Canon installer at build time.
+- **Always Ready**: Perfect for CI/CD or quick deployments.
+
+### Pull the image
+
+```bash
+docker pull ghcr.io/zr0aces/cups-canon-lbp7110cw:latest
+```
+
+### Update your `docker-compose.yml`
+
+Simply replace the `build: .` line with the `image` name:
+
+```yaml
+services:
+  cups:
+    image: ghcr.io/zr0aces/cups-canon-lbp7110cw:latest
+    container_name: cups-canon-lbp7110cw
+    # ... rest of your environment/volumes ...
+```
 
 ---
 
@@ -23,10 +52,11 @@ driver and automatic printer registration at container startup.
 
 | File | Purpose |
 |---|---|
-| `download-driver.sh` | **Run first.** Downloads Canon driver tarball locally |
+| `download-driver.sh` | **Run first.** Downloads and SHA256-verifies Canon driver tarball |
 | `Dockerfile` | Builds the image; runs `install.sh` at build time |
 | `docker-entrypoint.sh` | Starts CUPS, sets admin password, registers printer |
-| `docker-compose.yml` | Orchestrates the server + example client |
+| `docker-compose.yml` | Orchestrates the server (+ optional example client via `--profile example`) |
+| `.env-example` | Template for required secrets — copy to `.env` and edit |
 | `README.md` | This file |
 
 ---
@@ -36,7 +66,8 @@ driver and automatic printer registration at container startup.
 ### Step 1 — Download the Canon driver (once)
 
 The driver tarball (~21 MB) will be downloaded into a dedicated `download/`
-folder. Docker copies it from there during the build process.
+folder. Docker copies it from there during the build process. The script also
+verifies the SHA256 checksum to ensure integrity.
 
 ```bash
 chmod +x download-driver.sh
@@ -48,6 +79,7 @@ Expected output:
 ```
 ✓ File size    : 21942231 bytes
 ✓ gzip test    : OK
+✓ SHA256       : 46888140016bc1096694a0fd6fd3f6ad393970b8153756373a382dc82390f259
 ✓ install.sh   : found inside tarball
 
 Top-level contents:
@@ -67,25 +99,27 @@ Ready to build!
 
 ---
 
-### Step 2 — Set your printer's IP
+### Step 2 — Configure your environment
 
-The easiest way to configure the printer is using a `.env` file. You can
-copy the example and edit it:
+Copy the example file and edit it with your printer's IP and a secure password:
 
 ```bash
 cp .env-example .env
 nano .env
 ```
 
-Set the IP address of your printer:
 ```bash
-PRINTER_IP=192.168.1.100
+# .env
+PRINTER_IP=192.168.1.100    # ← your printer's actual IP
+ADMIN_PASSWORD=changeme      # ← change to a strong password
 ```
-
-Alternatively, you can edit the `environment` section in `docker-compose.yml`.
 
 **Finding your printer's IP:** Press the WiFi button on the printer to print a
 network status page, or check your router's DHCP leases table.
+
+> [!IMPORTANT]
+> Never commit your `.env` file to version control — it contains your admin
+> password. The `.gitignore` already excludes it.
 
 ---
 
@@ -141,21 +175,28 @@ The status will change from `(health: starting)` to `(healthy)` once the CUPS
 daemon is up and the printer has been registered. This status is used to
 coordinate dependent services like the `print-client` example.
 
+The entrypoint also monitors and **automatically restarts** `cupsd`,
+`avahi-daemon`, and `dbus-daemon` if any of them exit unexpectedly.
+
 ---
 
 ## Environment variables
 
 | Variable | Default | Description |
 |---|---|---|
-| `ADMIN_PASSWORD` | `admin` | CUPS Web UI + admin password |
+| `ADMIN_PASSWORD` | `admin` | CUPS Web UI + admin password — **set in `.env`** |
 | `PRINTER_NAME` | `Canon_LBP7110Cw` | CUPS queue name |
-| `PRINTER_IP` | `192.168.1.100` | **Set to your printer's IP** |
+| `PRINTER_IP` | `192.168.1.100` | **Set in `.env`** — your printer's actual IP |
 | `PRINTER_PPD` | `CNRCUPSLBP7110CZNK.ppd` | PPD installed by Canon driver |
 | `CUPS_LOGLEVEL` | `warn` | `error` / `warn` / `info` / `debug` |
 | `CUPS_ENV_DEBUG` | `no` | `yes` = full `bash -x` trace in logs |
 
 No rebuild is required when changing these — they are applied at container
 startup.
+
+> [!IMPORTANT]
+> `ADMIN_PASSWORD` and `PRINTER_IP` should be set in your `.env` file, not
+> hardcoded in `docker-compose.yml`. This keeps secrets out of version control.
 
 ---
 
@@ -208,6 +249,16 @@ networks:
     external: true                 # references the already-running network
 ```
 
+### Running the bundled example print client
+
+The root `docker-compose.yml` includes an optional print-client that installs
+`cups-client` and sends a test page. It is disabled by default and only runs
+when you pass `--profile example`:
+
+```bash
+docker compose --profile example up
+```
+
 ---
 
 ## CUPS Web UI
@@ -215,11 +266,17 @@ networks:
 | URL | Purpose |
 |---|---|
 | `http://localhost:631/` | Printer list |
-| `http://localhost:631/admin` | Administration |
+| `http://localhost:631/admin` | Administration (requires login) |
 | `http://localhost:631/jobs` | Job queue |
 | `http://localhost:631/printers/Canon_LBP7110Cw` | Printer status & test page |
 
 Login: **admin** / value of `ADMIN_PASSWORD`.
+
+> [!NOTE]
+> The admin endpoints (`/admin`, `/admin/conf`, `/admin/log`) require
+> authentication. The printer submission endpoint (`/`) is open to all
+> containers on `print-network`, which is the correct behaviour for a shared
+> print server.
 
 ---
 
@@ -228,6 +285,7 @@ Login: **admin** / value of `ADMIN_PASSWORD`.
 | Item | Value |
 |---|---|
 | Tarball | `linux-UFRIILT-drv-v500-uken-18.tar.gz` |
+| SHA256 | `46888140016bc1096694a0fd6fd3f6ad393970b8153756373a382dc82390f259` |
 | Installer | `install.sh` (Canon's official script, run at build time) |
 | Packages | `cnrdrvcups-common` + `cnrdrvcups-ufr2lt-uk` |
 | PPD | `CNRCUPSLBP7110CZNK.ppd` |
@@ -243,7 +301,7 @@ docker logs cups-canon-lbp7110cw
 docker exec cups-canon-lbp7110cw tail -f /var/log/cups/error_log
 
 # ── Enable debug logging (no rebuild needed) ──────────────────────────────────
-# In docker-compose.yml set:  CUPS_ENV_DEBUG: "yes"  and  CUPS_LOGLEVEL: "debug"
+# In .env set:  CUPS_ENV_DEBUG=yes  and  CUPS_LOGLEVEL=debug
 docker compose up -d
 
 # ── Printer paused / stopped ──────────────────────────────────────────────────
@@ -275,8 +333,11 @@ docker exec cups-canon-lbp7110cw lpq -P Canon_LBP7110Cw
 
 ## Production checklist
 
-- [ ] Change `ADMIN_PASSWORD` from the default `admin`
+- [x] Set `ADMIN_PASSWORD` in `.env` (not in `docker-compose.yml`)
+- [ ] Change `ADMIN_PASSWORD` from the default — use a strong password
+- [x] Admin endpoints (`/admin*`) require authentication
 - [ ] Assign a **static IP** to the printer (DHCP reservation on your router)
 - [ ] Restrict port 631 to your LAN only (firewall / Docker network policy)
-- [ ] Pin the base image: `FROM ubuntu:22.04@sha256:<digest>`
+- [ ] Pin the base image to a digest: `FROM ubuntu:22.04@sha256:<digest>`
+      Get the current digest: `docker pull ubuntu:22.04 && docker inspect ubuntu:22.04 --format '{{index .RepoDigests 0}}'`
 - [ ] Set up log rotation for the `cups-logs` volume

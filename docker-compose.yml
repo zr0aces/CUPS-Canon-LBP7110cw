@@ -1,12 +1,15 @@
 # =============================================================================
-# docker-compose.yml
+# docker-compose.yml  v1.0.1
 # CUPS print server with Canon LBP7110Cw UFRII LT driver.
 # Based on ManuelKlaer/docker-cups-canon.
 #
 # Usage:
 #   1.  ./download-driver.sh        (once – downloads Canon driver tarball)
-#   2.  Set PRINTER_IP below        (your printer's actual IP address)
+#   2.  cp .env-example .env && nano .env   (set PRINTER_IP and ADMIN_PASSWORD)
 #   3.  docker compose up -d --build
+#
+# Optional example client (installs cups-client and sends a test page):
+#   docker compose --profile example up
 # =============================================================================
 
 services:
@@ -19,21 +22,19 @@ services:
     image: cups-canon-lbp7110cw:latest
     container_name: cups-canon-lbp7110cw
     restart: unless-stopped
+
+    # All secrets and settings come from .env — nothing sensitive is hardcoded
+    # here. Copy .env-example to .env and fill in your values. (#1)
     env_file:
       - .env
 
+    # These non-sensitive defaults are fine in compose; sensitive values
+    # (ADMIN_PASSWORD, PRINTER_IP) must come from .env.
     environment:
-      # ── ManuelKlaer-compatible admin credential ──────────────────────────
-      ADMIN_PASSWORD: "admin"            # ← CHANGE THIS in production
-
-      # ── CUPS logging ─────────────────────────────────────────────────────
-      CUPS_LOGLEVEL: "warn"             # error | warn | info | debug
-      CUPS_ENV_DEBUG: "no"             # "yes" enables full bash -x trace
-
-      # ── Canon LBP7110Cw settings ─────────────────────────────────────────
-      # No rebuild needed to change these — they are applied at startup.
+      CUPS_LOGLEVEL: "warn"      # error | warn | info | debug
+      CUPS_ENV_DEBUG: "no"       # "yes" enables full bash -x trace
       PRINTER_NAME: "Canon_LBP7110Cw"
-      PRINTER_PPD:  "CNRCUPSLBP7110CZNK.ppd"
+      PRINTER_PPD: "CNRCUPSLBP7110CZNK.ppd"
 
     ports:
       - "631:631"           # CUPS IPP + Web UI
@@ -48,16 +49,55 @@ services:
     networks:
       - print-network
 
-    # ── Healthcheck ──────────────────────────────────────────────────────────
-    # Container is healthy once CUPS responds on port 631.
-    # This allows dependent containers (like print-client) to wait until the
-    # CUPS server is fully initialized before attempting to print.
+    # ── Healthcheck (#15) – single canonical definition ──────────────────────
+    # The Dockerfile HEALTHCHECK is a fallback for docker run without compose.
+    # This definition takes precedence when using compose and is the source
+    # of truth for container orchestration.
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:631/"]
-      interval: 20s
-      timeout: 5s
-      retries: 6
-      start_period: 30s
+      test: ["CMD", "curl", "-sf", "--max-time", "8", "http://localhost:631/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 45s
+
+  # ── Optional example print-client (#22) ────────────────────────────────────
+  # Enabled only when you run:  docker compose --profile example up
+  # Replace or remove this service and connect your own app to print-network.
+  print-client:
+    profiles: [example]
+    image: ubuntu:22.04
+    container_name: print-client-example
+    restart: "no"
+    depends_on:
+      cups:
+        condition: service_healthy
+    environment:
+      CUPS_SERVER: cups
+    command: >
+      bash -c "
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get update -qq
+        apt-get install -y -qq cups-client curl
+
+        echo 'ServerName cups' > /etc/cups/client.conf
+
+        echo ''
+        echo '=== Available printers on the CUPS server ==='
+        lpstat -h cups -v
+
+        echo ''
+        echo '=== Sending test print job ==='
+        echo 'Hello from Docker print-client container!' | lp -h cups -d Canon_LBP7110Cw
+
+        echo ''
+        echo '=== Job queue ==='
+        lpstat -h cups
+
+        echo ''
+        echo 'Done. Container will now exit.'
+      "
+    networks:
+      - print-network
 
 # ── Named volumes ──────────────────────────────────────────────────────────────
 volumes:

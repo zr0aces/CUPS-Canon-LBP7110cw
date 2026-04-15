@@ -1,7 +1,13 @@
 FROM ubuntu:22.04
+# Tip (#20): Pin to a digest in production:
+#   FROM ubuntu:22.04@sha256:<digest>
+# Get the current digest with:
+#   docker pull ubuntu:22.04 && docker inspect ubuntu:22.04 --format '{{index .RepoDigests 0}}'
 
 LABEL maintainer="cups-canon-lbp7110cw"
 LABEL description="CUPS print server for Canon LBP7110Cw – based on ManuelKlaer/docker-cups-canon, driver installed via Canon's official install.sh"
+LABEL org.opencontainers.image.version="1.0.1"
+LABEL org.opencontainers.image.source="https://github.com/zr0aces/CUPS-Canon-LBP7110cw"
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -12,6 +18,10 @@ ENV ADMIN_PASSWORD=admin \
     PRINTER_NAME=Canon_LBP7110Cw \
     PRINTER_IP=192.168.1.100 \
     PRINTER_PPD=CNRCUPSLBP7110CZNK.ppd
+
+# ── Build argument: driver tarball filename (#16) ──────────────────────────────
+# Override with --build-arg DRIVER_FILE=... to support future driver versions.
+ARG DRIVER_FILE=linux-UFRIILT-drv-v500-uken-18.tar.gz
 
 # ── 1. Base system packages ───────────────────────────────────────────────────
 #    Matches the ManuelKlaer/docker-cups-canon package set, plus Canon driver
@@ -55,9 +65,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 #    Run  ./download-driver.sh  first so this file exists in the build context.
 #    The Dockerfile intentionally uses COPY (not RUN wget) so the build works
 #    in air-gapped / network-restricted environments.
-COPY download/linux-UFRIILT-drv-v500-uken-18.tar.gz /tmp/canon-driver.tar.gz
+COPY download/${DRIVER_FILE} /tmp/canon-driver.tar.gz
 
-# ── 3. Extract tarball and run Canon's official install.sh non-interactively ──
+# ── 3. Extract tarball, run Canon's installer, configure CUPS, and clean up ───
 #
 #    install.sh asks exactly two Y/N questions:
 #      Q1 "proceed with installation? [Y/n]" → Y  (install the packages)
@@ -65,9 +75,11 @@ COPY download/linux-UFRIILT-drv-v500-uken-18.tar.gz /tmp/canon-driver.tar.gz
 #                                                   by docker-entrypoint.sh
 #                                                   so PRINTER_IP is flexible)
 #
-#    install.sh also requires cupsd to be running before it executes,
-#    because it calls  `service cups restart`  after dpkg to activate filters.
-#    We start cupsd temporarily, run the installer, then stop cupsd cleanly.
+#    install.sh requires cupsd running before it executes because it calls
+#    `service cups restart` after dpkg. We start cupsd temporarily, run the
+#    installer, then wait for it to exit cleanly (#8).
+#
+#    CUPS config and usermod are merged here to minimise image layers (#13).
 RUN set -eux \
     # ── Extract ──────────────────────────────────────────────────────────────
     && mkdir -p /tmp/canon-driver \
@@ -96,9 +108,10 @@ RUN set -eux \
     && cd "$INSTALL_DIR" \
     && printf 'Y\nN\n' | bash install.sh \
     \
-    # ── Stop temporary cupsd ─────────────────────────────────────────────────
+    # ── Stop temporary cupsd cleanly (#8) ────────────────────────────────────
     && pkill cupsd 2>/dev/null || true \
-    && sleep 2 \
+    && timeout 15 bash -c 'while pgrep -x cupsd >/dev/null 2>&1; do sleep 0.5; done' \
+        || echo "WARNING: cupsd did not exit cleanly; continuing anyway" \
     \
     # ── Verify ───────────────────────────────────────────────────────────────
     && echo "=== Installed Canon PPDs ===" \
@@ -108,15 +121,13 @@ RUN set -eux \
          \( -name "cnpdfdrv*" -o -name "cnrdrv*" -o -name "cnjbig*" \
             -o -name "rastertoufr2*" \) 2>/dev/null || true \
     \
-    # ── Cleanup ───────────────────────────────────────────────────────────────
-    && rm -rf /tmp/canon-driver /tmp/canon-driver.tar.gz
-
-# ── 4. Configure CUPS for Docker / inter-container networking ─────────────────
-#    Pattern from ManuelKlaer / olbat / ydkn:
-#      - Listen on all interfaces (not just loopback)
-#      - No TLS encryption so plain HTTP from other containers works
-#      - Allow connections from all sources (Docker bridge network)
-RUN set -eux \
+    # ── Configure CUPS for Docker / inter-container networking (#2, #13) ─────
+    #    - Listen on all interfaces (not just loopback)
+    #    - No TLS: plain HTTP for container-to-container printing
+    #      (DefaultEncryption Never is safe on a private Docker network;
+    #       add a TLS-terminating reverse proxy if external access is needed)
+    #    - /           Allow all  — needed so any container can submit print jobs
+    #    - /admin*     Require authentication (#2) — protects config changes
     && sed -i \
         -e 's|^Listen localhost:631|Port 631|g' \
         -e 's|^Listen 127\.0\.0\.1:631|Port 631|g' \
@@ -134,6 +145,8 @@ ServerAlias *
 </Location>
 
 <Location /admin>
+  AuthType Default
+  Require user @SYSTEM
   Order allow,deny
   Allow all
 </Location>
@@ -152,11 +165,14 @@ ServerAlias *
   Allow all
 </Location>
 CUPSCFG
+    \
+    # ── Allow root to manage printers without sudo (#13 – merged here) ────────
+    && usermod -aG lpadmin root 2>/dev/null || true \
+    \
+    # ── Cleanup ───────────────────────────────────────────────────────────────
+    && rm -rf /tmp/canon-driver /tmp/canon-driver.tar.gz
 
-# ── 5. Allow root to manage printers without sudo ─────────────────────────────
-RUN usermod -aG lpadmin root 2>/dev/null || true
-
-# ── 6. Entrypoint ─────────────────────────────────────────────────────────────
+# ── 4. Entrypoint ─────────────────────────────────────────────────────────────
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
@@ -165,8 +181,9 @@ EXPOSE 631
 # Persist printer configuration across container restarts (same as ManuelKlaer)
 VOLUME ["/etc/cups"]
 
-# Healthcheck to monitor CUPS status
-HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-  CMD curl -f http://localhost:631/ || exit 1
+# Healthcheck — canonical definition lives in docker-compose.yml (#15).
+# This fallback is used when running the container directly without compose.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=45s --retries=3 \
+  CMD curl -sf --max-time 8 http://localhost:631/ || exit 1
 
 ENTRYPOINT ["/docker-entrypoint.sh"]

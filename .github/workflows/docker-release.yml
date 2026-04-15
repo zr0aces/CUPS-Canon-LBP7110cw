@@ -43,10 +43,27 @@ jobs:
       - name: Download Canon Driver
         run: bash download-driver.sh
 
+      # Verify the SHA256 of the downloaded tarball matches the known-good hash (#7).
+      # This ensures a compromised CDN or MITM cannot inject a malicious driver.
+      - name: Verify driver SHA256
+        run: |
+          EXPECTED="46888140016bc1096694a0fd6fd3f6ad393970b8153756373a382dc82390f259"
+          ACTUAL=$(sha256sum download/linux-UFRIILT-drv-v500-uken-18.tar.gz | awk '{print $1}')
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "::error::SHA256 mismatch for Canon driver tarball!"
+            echo "  Expected: $EXPECTED"
+            echo "  Actual:   $ACTUAL"
+            exit 1
+          fi
+          echo "✓ Driver SHA256 verified: $ACTUAL"
+
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
           context: .
+          # Note (#17): linux/arm64 is intentionally excluded.
+          # The Canon UFRII LT driver is a proprietary x86-only binary.
+          # ARM64 builds would fail during Canon's install.sh execution.
           platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
