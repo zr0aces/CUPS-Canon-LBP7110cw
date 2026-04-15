@@ -35,6 +35,7 @@ services:
       CUPS_ENV_DEBUG: "no"       # "yes" enables full bash -x trace
       PRINTER_NAME: "Canon_LBP7110Cw"
       PRINTER_PPD: "CNRCUPSLBP7110CZNK.ppd"
+      TZ: "Asia/Bangkok"
 
     ports:
       - "631:631"           # CUPS IPP + Web UI

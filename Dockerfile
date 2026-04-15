@@ -61,7 +61,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         curl \
         tar \
         procps \
+        tzdata \
     && rm -rf /var/lib/apt/lists/*
+
+# ── 1.1 Timezone configuration ────────────────────────────────────────────────
+# Set the default timezone to Bangkok (GMT+7)
+ENV TZ=Asia/Bangkok
 
 # ── 2. Copy the pre-downloaded Canon UFRII LT v5.00 driver tarball ────────────
 #    Run  ./download-driver.sh  first so this file exists in the build context.
