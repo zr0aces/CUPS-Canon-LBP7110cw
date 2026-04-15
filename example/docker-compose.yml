@@ -1,10 +1,51 @@
-# DEPRECATED — superseded in v1.0.1
+# =============================================================================
+# example/docker-compose.yml
+# 
+# Reference configuration for a client container connecting to the CUPS server.
+# This demonstrates how to install cups-client and send a test print job
+# over the shared Docker network.
 #
-# The example print-client service has been merged into the root
-# docker-compose.yml using Docker Compose profiles.
-#
-# To run the example client, use:
-#   docker compose --profile example up
-#
-# This file is kept only for reference and will be removed in a future version.
-# See the root docker-compose.yml for the current configuration.
+# Usage:
+#   docker compose -f ../docker-compose.yml -f docker-compose.yml up --build
+# =============================================================================
+
+services:
+  print-client:
+    image: ubuntu:22.04
+    container_name: print-client-example
+    restart: "no"
+    depends_on:
+      cups:
+        condition: service_healthy
+    environment:
+      CUPS_SERVER: cups
+    command: >
+      bash -c "
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get update -qq
+        apt-get install -y -qq cups-client curl
+
+        echo 'ServerName cups' > /etc/cups/client.conf
+
+        echo ''
+        echo '=== Available printers on the CUPS server ==='
+        lpstat -h cups -v
+
+        echo ''
+        echo '=== Sending test print job ==='
+        echo 'Hello from Docker print-client container!' | lp -h cups -d Canon_LBP7110Cw
+
+        echo ''
+        echo '=== Job queue ==='
+        lpstat -h cups
+
+        echo ''
+        echo 'Done. Container will now exit.'
+      "
+    networks:
+      - print-network
+
+networks:
+  print-network:
+    external: true
+    name: cups-canon-lbp7110cw_print-network

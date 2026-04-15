@@ -116,10 +116,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   driver version upgrades a one-line change (`--build-arg DRIVER_FILE=...`).
 
 ### Changed
-- **Example print-client uses Docker Compose profiles** (#22). The `print-client`
-  service is now part of the root `docker-compose.yml` under `profiles: [example]`
-  and is **off by default**. Run with `docker compose --profile example up` to
-  activate it. The `example/docker-compose.yml` file is deprecated.
+- **Example print-client retained as standalone configuration** (#22). The `example/docker-compose.yml` file is maintained as an independent configuration block intended solely as a reference configuration for client testing.
 - **`.env-example` expanded** (#4). Now documents all six supported variables
   (`PRINTER_IP`, `ADMIN_PASSWORD`, `PRINTER_NAME`, `PRINTER_PPD`,
   `CUPS_LOGLEVEL`, `CUPS_ENV_DEBUG`) with descriptions and safe defaults.

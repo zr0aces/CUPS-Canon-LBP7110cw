@@ -80,44 +80,6 @@ services:
         max-size: "20m"
         max-file: "5"
 
-  # ── Optional example print-client (#22) ────────────────────────────────────
-  # Enabled only when you run:  docker compose --profile example up
-  # Replace or remove this service and connect your own app to print-network.
-  print-client:
-    profiles: [example]
-    image: ubuntu:22.04
-    container_name: print-client-example
-    restart: "no"
-    depends_on:
-      cups:
-        condition: service_healthy
-    environment:
-      CUPS_SERVER: cups
-    command: >
-      bash -c "
-        export DEBIAN_FRONTEND=noninteractive
-        apt-get update -qq
-        apt-get install -y -qq cups-client curl
-
-        echo 'ServerName cups' > /etc/cups/client.conf
-
-        echo ''
-        echo '=== Available printers on the CUPS server ==='
-        lpstat -h cups -v
-
-        echo ''
-        echo '=== Sending test print job ==='
-        echo 'Hello from Docker print-client container!' | lp -h cups -d Canon_LBP7110Cw
-
-        echo ''
-        echo '=== Job queue ==='
-        lpstat -h cups
-
-        echo ''
-        echo 'Done. Container will now exit.'
-      "
-    networks:
-      - print-network
 
 # ── Named volumes ──────────────────────────────────────────────────────────────
 volumes:
