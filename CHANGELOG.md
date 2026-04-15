@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `image` field in `docker-compose.yml` was set to the bare local name
   `cups-canon-lbp7110cw:latest`, causing Docker to look for the image on
   Docker Hub (where it does not exist) instead of the GitHub Container
-  Registry. Changed to the full qualified name
+  Registry. Changed to the fully-qualified name
   `ghcr.io/zr0aces/cups-canon-lbp7110cw:latest`.
 
 ---
