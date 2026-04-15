@@ -5,6 +5,11 @@ on:
     tags:
       - "v*.*.*"
 
+# Prevent two release builds running simultaneously for the same tag. (#10)
+concurrency:
+  group: docker-release-${{ github.ref }}
+  cancel-in-progress: false   # never cancel an in-progress release build
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}

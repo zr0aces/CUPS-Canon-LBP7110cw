@@ -1,0 +1,29 @@
+# =============================================================================
+# .dockerignore  v1.0.2
+# Limits the build context sent to the Docker daemon on every `docker build`.
+# Without this, the 21 MB driver tarball, the entire .git/ history, and all
+# runtime state directories are transferred unnecessarily every build. (#1)
+# =============================================================================
+
+# ── Git internals (never needed in image) ─────────────────────────────────────
+.git/
+.github/
+
+# ── Runtime state (changes every run — busts the layer cache needlessly) ──────
+cups-config/
+cups-logs/
+cups-spool/
+
+# ── Local secrets ─────────────────────────────────────────────────────────────
+.env
+
+# ── Development / documentation files ────────────────────────────────────────
+README.md
+CHANGELOG.md
+SECURITY.md
+example/
+*.md
+
+# NOTE: `download/` is intentionally NOT ignored here.
+# The Canon driver tarball (download/*.tar.gz) must be present in the build
+# context so that the Dockerfile COPY instruction can include it in the image.

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# docker-entrypoint.sh  v1.0.1
+# docker-entrypoint.sh  v1.0.2
 # Based on ManuelKlaer/docker-cups-canon (which forks ydkn / olbat cupsd).
 # Extended to auto-register the Canon LBP7110Cw via its UFRII LT PPD.
 #
@@ -55,7 +55,13 @@ if ! id admin &>/dev/null 2>&1; then
             --groups lpadmin,sudo admin
     ok "User 'admin' created."
 fi
-echo "admin:${ADMIN_PASSWORD}" | chpasswd
+# Validate password: chpasswd parses 'user:password' — a colon in the value
+# is treated as a field separator and silently sets the wrong password. (#6)
+if [[ "${ADMIN_PASSWORD}" == *:* ]]; then
+    err "ADMIN_PASSWORD must not contain a colon (:). Update your .env file."
+    exit 1
+fi
+printf 'admin:%s\n' "${ADMIN_PASSWORD}" | chpasswd
 ok "Admin password configured."
 
 # ── 2. Required directories ───────────────────────────────────────────────────
@@ -189,11 +195,29 @@ log ""
 lpstat -v 2>/dev/null || true
 log ""
 
-# ── 10. Keep the container alive; restart cupsd / avahi / dbus if they crash ──
-# (#9 — extended to restart avahi-daemon and dbus-daemon if they exit)
+# ── Graceful shutdown handler (#2) ───────────────────────────────────────────
+# Invoked by the trap below when Docker sends SIGTERM/SIGINT to PID 1.
+# Without this, Docker waits the stop grace period then SIGKILL-s cupsd
+# mid-job, risking spool file corruption and lost print jobs.
+_shutdown() {
+    log "Shutdown signal received — stopping services gracefully..."
+    pkill -TERM cupsd        2>/dev/null || true
+    pkill -TERM avahi-daemon 2>/dev/null || true
+    pkill -TERM dbus-daemon  2>/dev/null || true
+    # Wait up to 10 s for cupsd to flush and exit cleanly
+    timeout 10 bash -c 'while pgrep -x cupsd >/dev/null 2>&1; do sleep 0.5; done' || true
+    ok "Shutdown complete."
+    exit 0
+}
+trap _shutdown SIGTERM SIGINT SIGQUIT
+
+# ── 10. Keep the container alive; restart services if they crash ──────────────
 log "Container running. Monitoring services every 10 s..."
 while true; do
-    sleep 10
+    # Run sleep in the background and wait — this allows SIGTERM delivered to
+    # PID 1 to interrupt the wait and invoke the trap handler above. (#2)
+    sleep 10 &
+    wait $!
 
     # ── cupsd ──────────────────────────────────────────────────────────────
     if ! pgrep -x cupsd > /dev/null 2>&1; then

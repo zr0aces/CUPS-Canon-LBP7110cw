@@ -6,14 +6,16 @@ FROM ubuntu:22.04
 
 LABEL maintainer="cups-canon-lbp7110cw"
 LABEL description="CUPS print server for Canon LBP7110Cw – based on ManuelKlaer/docker-cups-canon, driver installed via Canon's official install.sh"
-LABEL org.opencontainers.image.version="1.0.1"
+LABEL org.opencontainers.image.version="1.0.2"
 LABEL org.opencontainers.image.source="https://github.com/zr0aces/CUPS-Canon-LBP7110cw"
 
 ENV DEBIAN_FRONTEND=noninteractive
 
 # ── Runtime defaults (all overridable via -e / environment: in compose) ────────
-ENV ADMIN_PASSWORD=admin \
-    CUPS_LOGLEVEL=warn \
+# NOTE: ADMIN_PASSWORD is intentionally omitted from ENV — storing a default
+# password here permanently embeds it in the image layer history visible via
+# `docker history`. The entrypoint applies the bash fallback at runtime. (#4)
+ENV CUPS_LOGLEVEL=warn \
     CUPS_ENV_DEBUG=no \
     PRINTER_NAME=Canon_LBP7110Cw \
     PRINTER_IP=192.168.1.100 \
@@ -115,8 +117,9 @@ RUN set -eux \
     \
     # ── Verify ───────────────────────────────────────────────────────────────
     && echo "=== Installed Canon PPDs ===" \
-    && find /usr/share/cups/model -name "*.ppd" 2>/dev/null | grep -i canon \
-    && echo "=== Canon CUPS filters/backends ===" \
+    && { find /usr/share/cups/model -name "*.ppd" 2>/dev/null | grep -i canon \
+         || echo "WARNING: No Canon PPDs found in /usr/share/cups/model — check install.sh output above"; } \
+    && echo "=== Canon CUPS filters/backends ==="  \
     && find /usr/lib/cups /usr/local/lib/cups \
          \( -name "cnpdfdrv*" -o -name "cnrdrv*" -o -name "cnjbig*" \
             -o -name "rastertoufr2*" \) 2>/dev/null || true \
@@ -138,6 +141,11 @@ RUN set -eux \
 DefaultEncryption Never
 WebInterface Yes
 ServerAlias *
+
+# ── Log rotation (prevent unbounded growth in cups-logs volume) (#8) ─────
+MaxLogSize 10m
+PreserveJobHistory No
+PreserveJobFiles No
 
 <Location />
   Order allow,deny
@@ -173,8 +181,8 @@ CUPSCFG
     && rm -rf /tmp/canon-driver /tmp/canon-driver.tar.gz
 
 # ── 4. Entrypoint ─────────────────────────────────────────────────────────────
-COPY docker-entrypoint.sh /docker-entrypoint.sh
-RUN chmod +x /docker-entrypoint.sh
+# --chmod=755 sets permissions at copy time — no separate RUN layer needed (#9)
+COPY --chmod=755 docker-entrypoint.sh /docker-entrypoint.sh
 
 EXPOSE 631
 

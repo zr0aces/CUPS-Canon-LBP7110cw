@@ -7,6 +7,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.2] — 2026-04-15
+
+### Security
+- **`ADMIN_PASSWORD` removed from Dockerfile `ENV`** (#4). Storing a default
+  password in `ENV` permanently embeds it in the image layer history, visible
+  via `docker history`. The entrypoint now applies the bash fallback
+  `${ADMIN_PASSWORD:-admin}` at runtime, leaving no trace in the image.
+- **`ADMIN_PASSWORD` validated before `chpasswd`** (#6). A colon (`:`) in the
+  password value is silently treated as a field separator by `chpasswd`, causing
+  a different password to be set. The entrypoint now rejects passwords containing
+  a colon with a clear error message before any account change is made.
+
+### Bug Fixes
+- **SIGTERM trap added to entrypoint** (#2). The monitoring loop now registers a
+  `_shutdown()` handler via `trap … SIGTERM SIGINT SIGQUIT`. `docker stop` and
+  `docker compose down` previously waited the full grace period before SIGKILL-ing
+  `cupsd` mid-job (risking spool corruption). The handler sends `SIGTERM` to all
+  managed processes and waits up to 10 s for `cupsd` to flush and exit cleanly.
+  The `sleep` inside the loop was changed to `sleep 10 & wait $!` so that signals
+  interrupt the sleep and invoke the trap immediately.
+- **Dockerfile PPD verification is now non-fatal** (#3). The `grep -i canon`
+  step previously would exit 1 (under `set -eux`) if no Canon PPDs were found in
+  `/usr/share/cups/model`, aborting the build with a cryptic error. It now emits
+  a `WARNING:` message and continues, allowing the build to produce a useful
+  diagnostic instead of a silent failure.
+- **Missing `v1.0.1` git tag applied** (#5). The v1.0.1 release commit (`6cff97c`)
+  existed on `main` but was never tagged, so the GitHub Actions workflow (which
+  triggers on `v*.*.*` tag pushes) would never have built or pushed the v1.0.1
+  image to GHCR.
+
+### Performance
+- **`.dockerignore` added** (#1). Without it, `docker build` transferred the full
+  21 MB Canon driver tarball, the entire `.git/` history, and all runtime state
+  directories (cups-config/, cups-logs/, cups-spool/) to the Docker daemon on
+  every build. The new `.dockerignore` excludes all non-essential files while
+  keeping the driver tarball (required by `COPY`).
+- **Resource limits added to `docker-compose.yml`** (#7). A `deploy.resources`
+  block capping memory at 512 MB (reserved 128 MB) and a `logging` block limiting
+  container JSON logs to 20 MB × 5 files prevent a flood of print jobs from
+  exhausting host resources.
+- **CUPS log rotation configured** (#8). `MaxLogSize 10m`, `PreserveJobHistory No`,
+  and `PreserveJobFiles No` added to the `cupsd.conf` heredoc in the Dockerfile.
+  Previously, `access_log`, `error_log`, and `page_log` inside the `cups-logs`
+  volume grew without bound.
+- **`RUN chmod +x` layer eliminated** (#9). The Dockerfile now uses
+  `COPY --chmod=755 docker-entrypoint.sh` instead of a separate `RUN chmod`
+  instruction, removing one image layer.
+
+### CI
+- **Concurrency guard added to GitHub Actions release workflow** (#10). A
+  `concurrency` group prevents two release builds from running simultaneously for
+  the same tag (e.g., due to a force-push or rapid succession of tag pushes).
+
+### Added
+- **`SECURITY.md`** (#11). Documents the responsible disclosure process, response
+  timeline, supported versions, and scope for security reports.
+- **`.dockerignore`** (#1). See Performance section above.
+
+---
+
 ## [1.0.1] — 2026-04-15
 
 ### Security
