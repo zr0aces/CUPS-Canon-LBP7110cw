@@ -124,6 +124,12 @@ RUN set -eux \
          \( -name "cnpdfdrv*" -o -name "cnrdrv*" -o -name "cnjbig*" \
             -o -name "rastertoufr2*" \) 2>/dev/null || true \
     \
+    # ── Allow root to manage printers without sudo (#13 – merged here) ────────
+    && usermod -aG lpadmin root 2>/dev/null || true \
+    \
+    # ── Cleanup ───────────────────────────────────────────────────────────────
+    && rm -rf /tmp/canon-driver /tmp/canon-driver.tar.gz \
+    \
     # ── Configure CUPS for Docker / inter-container networking (#2, #13) ─────
     #    - Listen on all interfaces (not just loopback)
     #    - No TLS: plain HTTP for container-to-container printing
@@ -173,12 +179,6 @@ PreserveJobFiles No
   Allow all
 </Location>
 CUPSCFG
-    \
-    # ── Allow root to manage printers without sudo (#13 – merged here) ────────
-    && usermod -aG lpadmin root 2>/dev/null || true \
-    \
-    # ── Cleanup ───────────────────────────────────────────────────────────────
-    && rm -rf /tmp/canon-driver /tmp/canon-driver.tar.gz
 
 # ── 4. Entrypoint ─────────────────────────────────────────────────────────────
 # --chmod=755 sets permissions at copy time — no separate RUN layer needed (#9)
