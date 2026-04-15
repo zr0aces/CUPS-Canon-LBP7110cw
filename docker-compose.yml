@@ -19,7 +19,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: cups-canon-lbp7110cw:latest
+    image: ghcr.io/zr0aces/cups-canon-lbp7110cw:latest
     container_name: cups-canon-lbp7110cw
     restart: unless-stopped
 
