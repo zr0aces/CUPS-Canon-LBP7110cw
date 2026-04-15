@@ -1,5 +1,5 @@
 # =============================================================================
-# docker-compose.yml  v1.0.2
+# docker-compose.yml  v1.1.0
 # CUPS print server with Canon LBP7110Cw UFRII LT driver.
 # Based on ManuelKlaer/docker-cups-canon.
 #

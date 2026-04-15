@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 # =============================================================================
-# download-driver.sh  v1.0.1
-# Downloads the Canon UFRII LT v5.00 Linux driver tarball from Canon's CDN
-# into the Docker build context (same folder as the Dockerfile).
+# download-driver.sh  v1.1.0
+# Verifies the Canon UFRII LT v5.00 Linux driver tarball in the /download
+# directory. While these drivers are now tracked in git to prevent missing
+# files during CI/CD or fresh clones, this script remains available to
+# re-download or verify the driver's integrity if needed.
 #
-# Run this ONCE before:  docker compose up -d --build
+# Run this for verification:  ./download-driver.sh
 #
-# The tarball is ~21 MB.  Re-running is safe — it skips the download if the
+# The tarball is ~21 MB. Re-running is safe — it skips the download if the
 # file is already present and passes all integrity checks.
 # =============================================================================
 set -euo pipefail

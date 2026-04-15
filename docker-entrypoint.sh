@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# docker-entrypoint.sh  v1.0.2
+# docker-entrypoint.sh  v1.1.0
 # Based on ManuelKlaer/docker-cups-canon (which forks ydkn / olbat cupsd).
 # Extended to auto-register the Canon LBP7110Cw via its UFRII LT PPD.
 #

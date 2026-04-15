@@ -11,6 +11,6 @@ cups-spool/*
 !cups-spool/.gitkeep
 
 # Canon driver tarball (large binary, downloaded by download-driver.sh)
-# Keep the download/ directory in git (via .gitkeep) but exclude the tarball.
-download/*
+# These are now tracked in git to prevent missing files during builds.
+# Keep the download/ directory.
 !download/.gitkeep

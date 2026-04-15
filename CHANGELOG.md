@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.0] — 2026-04-15
+
+### Added
+- **Drivers now managed in Git**: The Canon UFRII LT driver tarball is now tracked directly in the repository. This ensures that the build context always has the necessary files, preventing "missing file" errors during local builds or CI/CD pipelines.
+
+### Changed
+- **`.gitignore` updated**: Removed exclusion for the `download/` directory to allow tracking the driver tarball.
+- **`download-driver.sh` updated**: Script revised (v1.1.0) to primarily verify the integrity of pre-included drivers rather than just downloading them.
+- **`README.md` updated**: Refreshed the Quick Start guide to reflect the new driver management policy.
+
+---
+
 ## [1.0.2] — 2026-04-15
 
 ### Security

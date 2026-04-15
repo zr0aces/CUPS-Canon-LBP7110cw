@@ -63,11 +63,12 @@ services:
 
 ## Quick start
 
-### Step 1 — Download the Canon driver (once)
+### Step 1 — Verify the Canon driver
+The driver tarball (~21 MB) is managed directly in this repository within the
+`download/` folder. This ensures that the build always has the necessary files
+and prevents issues with missing drivers or broken download links.
 
-The driver tarball (~21 MB) will be downloaded into a dedicated `download/`
-folder. Docker copies it from there during the build process. The script also
-verifies the SHA256 checksum to ensure integrity.
+You can verify the driver's integrity using the provided script:
 
 ```bash
 chmod +x download-driver.sh

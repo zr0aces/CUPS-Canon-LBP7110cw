@@ -1,5 +1,5 @@
 # =============================================================================
-# .dockerignore  v1.0.2
+# .dockerignore  v1.1.0
 # Limits the build context sent to the Docker daemon on every `docker build`.
 # Without this, the 21 MB driver tarball, the entire .git/ history, and all
 # runtime state directories are transferred unnecessarily every build. (#1)
